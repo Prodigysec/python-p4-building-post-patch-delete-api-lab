@@ -18,29 +18,140 @@ db.init_app(app)
 def home():
     return '<h1>Bakery GET-POST-PATCH-DELETE API</h1>'
 
-@app.route('/bakeries')
+@app.route('/bakeries', methods = ['GET','POST'])
 def bakeries():
 
-    bakeries = Bakery.query.all()
-    bakeries_serialized = [bakery.to_dict() for bakery in bakeries]
+    if request.method == 'GET':
+        bakeries = Bakery.query.all()
+        bakeries_serialized = [bakery.to_dict() for bakery in bakeries]
+
+        response = make_response(
+            bakeries_serialized,
+            200
+        )
+        return response
+        
+    elif request.method == 'POST':
+        new_bakery = Bakery(
+            name=request.form.get('name')
+        )
+
+        db.session.add(new_bakery)
+        db.session.commit()
+
+        bakery_dict = new_bakery.to_dict()
+
+        response = make_response(
+            jsonify(bakery_dict),
+            201
+        )
+
+        return response
+
+
+@app.route('/baked_goods', methods = ['POST'])
+def baked_goods():
+    new_baked_good = BakedGood(
+        name=request.form.get('name'),
+        price=request.form.get('price'),
+        bakery_id=request.form.get('bakery_id')
+    )
+
+    db.session.add(new_baked_good)
+    db.session.commit()
+
+    baked_good_dict = new_baked_good.to_dict()
 
     response = make_response(
-        bakeries_serialized,
-        200
+        jsonify(baked_good_dict),
+        201
     )
+
     return response
 
-@app.route('/bakeries/<int:id>')
+
+@app.route('/bakeries/<int:id>', methods = ['GET','PATCH','DELETE'])
 def bakery_by_id(id):
 
-    bakery = Bakery.query.filter_by(id=id).first()
-    bakery_serialized = bakery.to_dict()
+    if id == None:
+        response_body = {
+            "message": "Bakery not found."
+        }
+        response = make_response(jsonify(response_body), 404)
 
-    response = make_response(
-        bakery_serialized,
-        200
-    )
-    return response
+        return response
+    
+    else:
+        if request.method == 'GET':
+            bakery = Bakery.query.filter_by(id=id).first()
+            bakery_serialized = bakery.to_dict()
+
+            response = make_response(
+                bakery_serialized,
+                200
+            )
+            return response
+
+        elif request.method == 'PATCH':
+            bakery = Bakery.query.filter_by(id=id).first()
+            bakery.name = request.form.get('name')
+
+            db.session.commit()
+            bakery_serialized = bakery.to_dict()
+
+            response = make_response(
+                jsonify(bakery_serialized),
+                200
+            )
+            return response
+
+        elif request.method == 'DELETE':
+            # Delete baked goods associated with bakery
+            baked_goods = BakedGood.query.filter_by(bakery_id=id).all()
+            for baked_good in baked_goods:
+                db.session.delete(baked_good)
+                db.session.commit()
+            
+            # Delete bakery
+            bakery = Bakery.query.filter_by(id=id).first()
+            db.session.delete(bakery)
+            db.session.commit()
+
+            response_body = {
+                "message": "Baked goods deleted."
+            }
+            response = make_response(
+                jsonify(response_body),
+                200
+            )
+            return response
+
+
+@app.route('/baked_goods/<int:id>', methods = ['DELETE'])
+def baked_good_by_id(id):
+    if id == None:
+        response_body = {
+            "message": "Baked good not found."
+        }
+        response = make_response(jsonify(response_body), 404)
+
+        return response
+    
+    else:
+        if request.method == 'DELETE':
+            baked_good = BakedGood.query.filter_by(id=id).first()
+            db.session.delete(baked_good)
+            db.session.commit()
+
+            response_body = {
+                "message": "Baked good deleted."
+            }
+            response = make_response(
+                jsonify(response_body),
+                200
+            )
+            return response
+
 
 @app.route('/baked_goods/by_price')
 def baked_goods_by_price():
